@@ -76,25 +76,13 @@ class Settings(BaseSettings):
     # Master switch for the provider.
     opencode_enabled: bool = False
     opencode_label: str = "OpenCode Go"
-    # Collection strategy: "static" reads configured limits from env; "playwright"
-    # drives a headless Chromium session against the OpenCode Go dashboard;
-    # "api" uses an OpenCode Go API key to validate auth and probe usage
-    # endpoints, falling back to playwright/cookie scraping if none exist.
+    # Collection strategy: "static" reads configured limits from env; "api"
+    # uses an OpenCode Go API key to validate auth and probe usage endpoints.
     opencode_mode: str = "static"
     # Static-mode configuration.
     opencode_monthly_limit_usd: float = 20.0
     opencode_monthly_used_usd: float = 0.0
     opencode_reset_day_of_month: int = 1
-    # Playwright-mode configuration.
-    opencode_dashboard_url: Optional[str] = None
-    opencode_playwright_profile_dir: Path = Field(
-        Path("/app/browser-state"),
-        description="Persistent Chromium user data dir (survives container restarts)",
-    )
-    opencode_headless: bool = True
-    # Optional Cookie-Editor JSON export for seeding auth without interactive
-    # login. Loaded before navigating to the dashboard.
-    opencode_cookies_file: Optional[Path] = None
     # API-mode configuration.
     opencode_api_base_url: str = "https://opencode.ai/zen/go/v1"
     opencode_go_auth_file: Optional[Path] = None
@@ -111,8 +99,8 @@ class Settings(BaseSettings):
     @classmethod
     def _opencode_mode(cls, v: str) -> str:
         v = v.strip().lower()
-        if v not in ("static", "playwright", "api"):
-            raise ValueError("opencode_mode must be 'static', 'playwright', or 'api'")
+        if v not in ("static", "api"):
+            raise ValueError("opencode_mode must be 'static' or 'api'")
         return v
 
     def codex_account_configs(self) -> list[CodexAccountConfig]:

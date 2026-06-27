@@ -1,24 +1,10 @@
 """OpenCode Go/Zen adapter.
 
-Three collection strategies, selected by ``OPENCODE_MODE``:
+Two collection strategies are supported, selected by ``OPENCODE_MODE``:
 
-* ``static`` (default, V1 fallback) — exposes configured Go usage limits from
-  env vars. No network access required.
-* ``playwright`` — drives a persistent headless Chromium session against the
-  OpenCode Go dashboard, scrapes Rolling / Weekly / Monthly usage cards, and
-  normalizes them into meters. A one-time interactive login (headless=false)
-  seeds the persistent profile; subsequent runs are headless.
-* ``api`` — uses an OpenCode Go API key (``OPENCODE_GO_AUTH_FILE``) to validate
-  auth against ``GET {base_url}/models``, then probes for usage/balance
-  endpoints. If a usage endpoint is found, its payload is normalized into
-  meters. If no usage endpoint exists, the adapter falls back to the
-  Playwright/cookie scraping path (when ``OPENCODE_DASHBOARD_URL`` is set) or
-  produces an error meter.
-
-The HTML parser (:mod:`app.providers.opencode_parser`) and the auth-file
-reader (:func:`app.providers.opencode_api.read_go_auth_file`) are pure
-functions with no HTTP/Playwright dependency, so they are unit-tested in
-isolation from the browser fetcher (:mod:`app.providers.opencode_browser`).
+* ``static`` (default) exposes configured Go usage limits from env vars.
+* ``api`` uses an OpenCode Go API key to validate auth and probe usage/balance
+  endpoints. If no usage endpoint exists, the adapter reports a clear error.
 """
 
 from __future__ import annotations
@@ -37,8 +23,6 @@ from .opencode_api import (
     read_go_auth_file,
     validate_auth,
 )
-from .opencode_browser import fetch_dashboard_html
-from .opencode_parser import ParsedMeter, parse_opencode_dashboard
 
 log = logging.getLogger(__name__)
 
@@ -62,8 +46,6 @@ class OpenCodeAdapter(ProviderAdapter):
         mode = self.settings.opencode_mode
         if mode == "api":
             return await self._fetch_api()
-        if mode == "playwright":
-            return await self._fetch_playwright()
         return self._fetch_static()
 
     # --- API mode ----------------------------------------------------------
@@ -99,11 +81,7 @@ class OpenCodeAdapter(ProviderAdapter):
                 return meters
             log.info("OpenCode Go usage endpoint returned data but no meters could be normalized")
 
-        # 4. No usage endpoint (or unparseable data) -> fall back to playwright.
-        log.info("no OpenCode Go API usage endpoint found; falling back to playwright")
-        if self.settings.opencode_dashboard_url:
-            return await self._fetch_playwright()
-        return [self._error_meter("no usage endpoint found and OPENCODE_DASHBOARD_URL not set for fallback")]
+        return [self._error_meter("no OpenCode Go usage endpoint returned parseable usage data")]
 
     # --- Static mode (fallback) -------------------------------------------
 
@@ -137,57 +115,6 @@ class OpenCodeAdapter(ProviderAdapter):
             )
         ]
 
-    # --- Playwright mode ---------------------------------------------------
-
-    async def _fetch_playwright(self) -> list[UsageMeter]:
-        url = self.settings.opencode_dashboard_url
-        profile_dir = self.settings.opencode_playwright_profile_dir
-        cookies_file = self.settings.opencode_cookies_file
-        try:
-            html = await fetch_dashboard_html(
-                url=url,
-                profile_dir=profile_dir,
-                headless=self.settings.opencode_headless,
-                cookies_file=cookies_file,
-            )
-        except ProviderError as exc:
-            return [self._error_meter(str(exc))]
-        parsed = parse_opencode_dashboard(html)
-        if not parsed:
-            if _looks_like_login_page(html):
-                return [self._error_meter("dashboard is not authenticated; refresh OPENCODE_COOKIES_FILE or persistent browser profile")]
-            return [self._error_meter("no usage cards found on dashboard")]
-        return self._normalize_parsed(parsed)
-
-    def _normalize_parsed(self, parsed: list[ParsedMeter]) -> list[UsageMeter]:
-        now = utcnow()
-        meters: list[UsageMeter] = []
-        for item in parsed:
-            meter_id = f"opencode-{item.key}"
-            used_pct = item.used_percent
-            remaining_pct = compute_remaining(used_pct, None)
-            meters.append(
-                UsageMeter(
-                    id=meter_id,
-                    provider=self.provider_id,
-                    account_id=_ACCOUNT_ID,
-                    account_label=self.settings.opencode_label,
-                    label=item.label,
-                    used_percent=used_pct,
-                    remaining_percent=remaining_pct,
-                    reset_at=None,
-                    reset_label=item.reset_label,
-                    status=derive_status(remaining_pct),
-                    updated_at=now,
-                    metrics=merge_metrics(
-                        used=float(used_pct) if used_pct is not None else None,
-                        limit=100.0,
-                        unit="percent",
-                    ),
-                )
-            )
-        return meters
-
     # --- Shared helpers ----------------------------------------------------
 
     def _error_meter(self, message: str) -> UsageMeter:
@@ -208,13 +135,6 @@ class OpenCodeAdapter(ProviderAdapter):
 
 
 # --- static-mode helpers --------------------------------------------------
-
-
-def _looks_like_login_page(html: str) -> bool:
-    text = html.lower()
-    return "openauth" in text or (
-        "continue with github" in text and "continue with google" in text
-    )
 
 
 def _pct(used: float, limit: float) -> int | None:

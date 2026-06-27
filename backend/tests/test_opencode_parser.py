@@ -1,9 +1,7 @@
-"""Parser tests for the OpenCode Go dashboard HTML.
+"""Parser tests for saved OpenCode Go dashboard HTML fixtures.
 
-These tests exercise the pure :mod:`app.providers.opencode_parser` module only
-— no Playwright, no browser, no network. The browser fetcher
-(:mod:`app.providers.opencode_browser`) is covered separately by integration
-testing at deploy time.
+These tests exercise the pure :mod:`app.providers.opencode_parser` module only.
+They do not use browser automation or network calls.
 """
 
 from __future__ import annotations

@@ -1,8 +1,7 @@
-"""Pure HTML parser for the OpenCode Go dashboard.
+"""Pure HTML parser for saved OpenCode Go dashboard HTML fixtures.
 
-This module has **no Playwright dependency** so it can be unit-tested in
-isolation from the browser fetcher. The browser module produces an HTML string;
-this module turns it into structured meter data.
+This module turns already-available HTML into structured meter data. It does
+not fetch pages, automate browsers, or perform network calls.
 
 The parser is defensive: it searches for the text labels "Rolling Usage",
 "Weekly Usage", and "Monthly Usage", then looks within the nearest container

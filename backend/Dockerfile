@@ -11,16 +11,12 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install Chromium for OpenCode Playwright collector (OPENCODE_MODE=playwright).
-# This adds ~400MB but is required for browser-based usage scraping. The
-# browser-state volume persists the login session across container restarts.
-RUN python -m playwright install --with-deps chromium
 
 COPY app ./app
 
 # Default data dir for SQLite; mount a volume in compose.
-RUN mkdir -p /app/data /app/browser-state
-VOLUME ["/app/data", "/app/browser-state"]
+RUN mkdir -p /app/data
+VOLUME ["/app/data"]
 
 EXPOSE 8000
 

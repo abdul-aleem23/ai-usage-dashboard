@@ -159,7 +159,7 @@ Each configured provider should report `ok` or a meaningful account-level error.
 
 ### OpenCode status
 
-OpenCode collection is optional. The code supports static, API, and Playwright modes, but server-side browser authentication may require a reliable cookie export or a provider usage API.
+OpenCode collection is optional. The code supports static and API modes only. Browser-based scraping is intentionally not included.
 ## 6. ESP32 client usage
 
 ```cpp

@@ -18,8 +18,6 @@ backend/data/
 backend/app/data/
 backend/secrets/
 secrets/
-browser-state/
-app/browser-state/
 
 
 # Cloudflare local credentials

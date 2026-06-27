@@ -5,7 +5,7 @@ Covers:
 * API validation against /models (httpx MockTransport).
 * Usage endpoint probing (httpx MockTransport).
 * Usage payload normalization (pure).
-* Adapter-level ``api`` mode dispatch including playwright fallback.
+* Adapter-level ``api`` mode dispatch.
 
 No live network calls; all HTTP is mocked via ``httpx.MockTransport``.
 """
@@ -374,62 +374,7 @@ async def test_api_mode_missing_auth_file(db_path: Path):
 
 
 @pytest.mark.asyncio
-async def test_api_mode_falls_back_to_playwright_when_no_usage_endpoint(
-    db_path: Path, tmp_path: Path, monkeypatch
-):
-    from app.providers import opencode
-    from app.providers.opencode import OpenCodeAdapter
-    from app.providers.opencode_parser import ParsedMeter
-    from tests.conftest import make_settings
-
-    auth_path = _write_auth_file(tmp_path)
-    models = load_fixture("opencode_models.json")
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        if request.url.path.endswith("/models"):
-            return httpx.Response(200, json=models)
-        # All usage endpoints -> 404
-        return httpx.Response(404)
-
-    settings = make_settings(
-        db_path,
-        opencode_enabled=True,
-        opencode_mode="api",
-        opencode_go_auth_file=auth_path,
-        opencode_api_base_url="https://opencode.ai/zen/go/v1",
-        opencode_dashboard_url="https://opencode.example.com/dashboard",
-        opencode_headless=True,
-    )
-    adapter = OpenCodeAdapter(settings)
-    adapter._client = httpx.AsyncClient(transport=_mock_transport(handler))
-
-    # Mock the playwright fetcher so no real browser launches.
-    async def fake_fetch(url, profile_dir, headless=True, timeout_ms=30000, cookies_file=None):
-        assert url == "https://opencode.example.com/dashboard"
-        return "<html>dashboard html</html>"
-
-    monkeypatch.setattr(opencode, "fetch_dashboard_html", fake_fetch)
-
-    def fake_parse(html):
-        return [ParsedMeter(key="rolling", label="Rolling Usage", used_percent=8, reset_label="Resets in 2h")]
-
-    monkeypatch.setattr(opencode, "parse_opencode_dashboard", fake_parse)
-
-    try:
-        meters = await adapter.fetch_meters()
-    finally:
-        await adapter.aclose()
-
-    # Should have fallen back to playwright and produced meters.
-    assert len(meters) == 1
-    assert meters[0].id == "opencode-rolling"
-    assert meters[0].used_percent == 8
-
-
-@pytest.mark.asyncio
-async def test_api_mode_error_when_no_usage_endpoint_and_no_dashboard_url(
-    db_path: Path, tmp_path: Path
-):
+async def test_api_mode_error_when_no_usage_endpoint(db_path: Path, tmp_path: Path):
     from app.providers.opencode import OpenCodeAdapter
     from tests.conftest import make_settings
 
@@ -447,7 +392,6 @@ async def test_api_mode_error_when_no_usage_endpoint_and_no_dashboard_url(
         opencode_mode="api",
         opencode_go_auth_file=auth_path,
         opencode_api_base_url="https://opencode.ai/zen/go/v1",
-        # No dashboard URL -> cannot fall back to playwright.
     )
     adapter = OpenCodeAdapter(settings)
     adapter._client = httpx.AsyncClient(transport=_mock_transport(handler))
@@ -458,19 +402,12 @@ async def test_api_mode_error_when_no_usage_endpoint_and_no_dashboard_url(
 
     assert len(meters) == 1
     assert meters[0].status == "error"
-    assert "no usage endpoint" in meters[0].reset_label
-    assert "OPENCODE_DASHBOARD_URL" in meters[0].reset_label
+    assert "no OpenCode Go usage endpoint" in meters[0].reset_label
 
 
 @pytest.mark.asyncio
-async def test_api_mode_falls_back_to_playwright_when_usage_data_unparseable(
-    db_path: Path, tmp_path: Path, monkeypatch
-):
-    """Even if a usage endpoint returns 200, if the data can't be normalized
-    (empty/unrecognized shape), fall back to playwright."""
-    from app.providers import opencode
+async def test_api_mode_error_when_usage_data_unparseable(db_path: Path, tmp_path: Path):
     from app.providers.opencode import OpenCodeAdapter
-    from app.providers.opencode_parser import ParsedMeter
     from tests.conftest import make_settings
 
     auth_path = _write_auth_file(tmp_path)
@@ -480,7 +417,6 @@ async def test_api_mode_falls_back_to_playwright_when_usage_data_unparseable(
         if request.url.path.endswith("/models"):
             return httpx.Response(200, json=models)
         if request.url.path.endswith("/usage"):
-            # 200 but an empty/unrecognized shape.
             return httpx.Response(200, json={"unrelated": "data"})
         return httpx.Response(404)
 
@@ -490,26 +426,14 @@ async def test_api_mode_falls_back_to_playwright_when_usage_data_unparseable(
         opencode_mode="api",
         opencode_go_auth_file=auth_path,
         opencode_api_base_url="https://opencode.ai/zen/go/v1",
-        opencode_dashboard_url="https://opencode.example.com/dashboard",
     )
     adapter = OpenCodeAdapter(settings)
     adapter._client = httpx.AsyncClient(transport=_mock_transport(handler))
-
-    async def fake_fetch(url, profile_dir, headless=True, timeout_ms=30000, cookies_file=None):
-        return "<html>dashboard</html>"
-
-    monkeypatch.setattr(opencode, "fetch_dashboard_html", fake_fetch)
-    monkeypatch.setattr(
-        opencode,
-        "parse_opencode_dashboard",
-        lambda html: [ParsedMeter(key="monthly", label="Monthly Usage", used_percent=30, reset_label=None)],
-    )
-
     try:
         meters = await adapter.fetch_meters()
     finally:
         await adapter.aclose()
 
     assert len(meters) == 1
-    assert meters[0].id == "opencode-monthly"
-    assert meters[0].used_percent == 30
+    assert meters[0].status == "error"
+    assert "parseable usage data" in meters[0].reset_label

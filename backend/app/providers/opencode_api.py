@@ -12,8 +12,7 @@ Uses the API key to:
 2. **Probe** for any documented or likely usage/balance endpoints.
 3. **Normalize** any usage payload found into :class:`UsageMeter` rows.
 
-If no usage endpoint is available, callers should fall back to the
-Playwright/cookie scraping path (:mod:`app.providers.opencode_browser`).
+If no usage endpoint is available, callers should surface a provider error.
 
 The auth-file parsing function (:func:`read_go_auth_file`) is pure and has no
 HTTP dependency, so it can be unit-tested in isolation. The HTTP functions
@@ -58,7 +57,7 @@ _CANDIDATE_USAGE_PATHS: tuple[str, ...] = (
     "/account/balance",
 )
 
-# Canonical meter keys -> label text, matching the Playwright collector.
+# Canonical meter keys -> display label text.
 _METER_KEYS: dict[str, str] = {
     "rolling": "Rolling Usage",
     "weekly": "Weekly Usage",
