@@ -1,0 +1,31 @@
+services:
+  ai-usage:
+    build: ./backend
+    image: ai-usage-backend:1.0
+    container_name: ai-usage-backend
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    volumes:
+      - ./backend/data:/app/data
+      - ./secrets:/secrets:ro
+    ports:
+      - "127.0.0.1:8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: ai-usage-cloudflared
+    restart: unless-stopped
+    profiles:
+      - managed-tunnel
+    command: tunnel run
+    env_file:
+      - ./cloudflare/.env
+    depends_on:
+      - ai-usage

@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.pytest-tmp/
+.pytest_tmp/
+pytest_tmp/
+run_tmp/
+.coverage
+htmlcov/
+.venv/
+venv/
+
+# Runtime data / local state (never commit)
+backend/.env
+backend/data/
+backend/app/data/
+backend/secrets/
+secrets/
+browser-state/
+app/browser-state/
+
+
+# Cloudflare local credentials
+cloudflare/.env
+cloudflare/*.json
+cloudflared/
+# Local agent/planning state
+.opencode/

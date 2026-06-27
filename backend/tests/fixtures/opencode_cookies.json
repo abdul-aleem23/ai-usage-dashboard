@@ -1,0 +1,53 @@
+[
+  {
+    "domain": "opencode.example.com",
+    "expirationDate": 1814137080,
+    "hostOnly": false,
+    "httpOnly": true,
+    "name": "session_id",
+    "path": "/",
+    "sameSite": "lax",
+    "secure": true,
+    "session": false,
+    "storeId": null,
+    "value": "s_abc123def456"
+  },
+  {
+    "domain": ".opencode.example.com",
+    "expirationDate": 1814137080.5,
+    "hostOnly": false,
+    "httpOnly": false,
+    "name": "csrf_token",
+    "path": "/dashboard",
+    "sameSite": "strict",
+    "secure": true,
+    "session": false,
+    "storeId": null,
+    "value": "csrf_xyz789"
+  },
+  {
+    "domain": "opencode.example.com",
+    "hostOnly": true,
+    "httpOnly": false,
+    "name": "theme",
+    "path": "/",
+    "sameSite": "no",
+    "secure": false,
+    "session": true,
+    "storeId": null,
+    "value": "dark"
+  },
+  {
+    "domain": "opencode.example.com",
+    "expirationDate": 1814137080,
+    "hostOnly": false,
+    "httpOnly": false,
+    "name": "analytics_id",
+    "path": "/",
+    "sameSite": "unspecified",
+    "secure": false,
+    "session": false,
+    "storeId": null,
+    "value": "ua_001"
+  }
+]

@@ -1,0 +1,23 @@
+{
+  "data": {
+    "quantum_updates": {
+      "entitlement": { "slug": "copilot_business" }
+    },
+    "quota_snapshots": [
+      {
+        "quota_type": "code_completions",
+        "used": 35,
+        "total": 100,
+        "unit": "requests",
+        "resets_at": "2026-06-27T22:58:00Z"
+      },
+      {
+        "quota_type": "chat",
+        "used": 200,
+        "total": 500,
+        "unit": "requests",
+        "resets_at": "2026-06-28T00:00:00Z"
+      }
+    ]
+  }
+}

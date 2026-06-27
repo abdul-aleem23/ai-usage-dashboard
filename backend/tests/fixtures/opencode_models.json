@@ -1,0 +1,17 @@
+{
+  "object": "list",
+  "data": [
+    {
+      "id": "go-1.0",
+      "object": "model",
+      "created": 1717603200,
+      "owned_by": "opencode"
+    },
+    {
+      "id": "go-1.0-mini",
+      "object": "model",
+      "created": 1717603200,
+      "owned_by": "opencode"
+    }
+  ]
+}

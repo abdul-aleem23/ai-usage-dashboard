@@ -1,0 +1,22 @@
+{
+  "rate_limits": {
+    "primary_5h": {
+      "name": "5 hour usage limit",
+      "used_percent": 2,
+      "remaining_percent": 98,
+      "reset_at": "2026-06-27T22:58:00Z"
+    },
+    "weekly": {
+      "name": "Weekly usage limit",
+      "used_percent": 12,
+      "remaining_percent": 88,
+      "reset_at": "2026-06-28T18:46:00Z"
+    },
+    "code_review": {
+      "name": "Code review usage limit",
+      "used": 5,
+      "limit": 50,
+      "reset_at": "2026-06-27T22:58:00Z"
+    }
+  }
+}
