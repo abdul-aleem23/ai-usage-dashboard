@@ -56,10 +56,16 @@ Recommended hostname:
 ai-usage.example.com
 ```
 
-The backend container binds to localhost only:
+By default the backend container publishes port `8000` on the host. If your existing `cloudflared` tunnel runs as a host systemd service, route it to localhost:
 
 ```text
 http://127.0.0.1:8000
+```
+
+If your existing `cloudflared` tunnel runs in Docker, `127.0.0.1` points inside the `cloudflared` container. In that case route it to the Docker bridge host address instead, usually:
+
+```text
+http://172.17.0.1:8000
 ```
 
 ### Option A: existing cloudflared config file
@@ -91,8 +97,22 @@ If your tunnel is configured in the Cloudflare dashboard:
    - Subdomain: `ai-usage`
    - Domain: your domain
    - Type: `HTTP`
-   - URL: `127.0.0.1:8000`
+   - URL for host-installed `cloudflared`: `127.0.0.1:8000`
+   - URL for Docker-based `cloudflared`: `172.17.0.1:8000`
 5. Save and wait for the route to become active.
+
+To confirm the Docker bridge address on the server:
+
+```bash
+ip addr show docker0 | grep "inet "
+```
+
+To test from a Docker-based tunnel, use the bridge address in the public hostname route and then restart the tunnel container:
+
+```bash
+docker restart cloudflared
+curl https://ai-usage.example.com/health
+```
 
 ### Option C: project-managed tunnel container
 
@@ -180,13 +200,48 @@ its cache every `REFRESH_INTERVAL_MINUTES` regardless.
 - **Updating:** `git pull && docker compose up -d --build`.
 - **Logs:** `docker compose logs -f`.
 
-## 8. Optional hardening
+### Simple server deploy script
+
+This repository includes `scripts/deploy-server.sh` for manual server deployments. It pulls the latest `main`, rebuilds/restarts the backend container, and checks the local health endpoint.
+
+First-time setup on the server:
+
+```bash
+cd ~/monday/projects/personal/ai-usage-dashboard
+chmod +x scripts/deploy-server.sh
+```
+
+Deploy after a successful GitHub Actions run:
+
+```bash
+./scripts/deploy-server.sh
+```
+
+Override the project location only if your checkout lives somewhere else:
+
+```bash
+APP_DIR=/opt/ai-usage ./scripts/deploy-server.sh
+```
+
+## 8. CI/CD
+
+GitHub Actions runs on every push and pull request to `main`:
+
+- installs backend dependencies in a clean Python 3.12 environment
+- runs the backend test suite
+- builds the Docker image
+
+This is CI: it proves the code is healthy before you deploy it.
+
+Deployment is intentionally manual for now: log into the home server and run `./scripts/deploy-server.sh`. This keeps secrets on the server, avoids giving GitHub SSH access to the home server, and is easier to audit while the project is still early.
+
+## 9. Optional hardening
 
 - Put Cloudflare Access (Zero Trust) in front of `/docs` and admin endpoints.
 - Rotate API keys by updating `backend/.env` and `docker compose up -d`.
 - Move SQLite to a dedicated volume or migrate to Postgres for V1.1+.
 
-## 9. Server Information Needed
+## 10. Server Information Needed
 
 When configuring a real server, collect these values first:
 
