@@ -127,3 +127,63 @@ def test_admin_refresh_with_admin_key(settings):
         body = resp.json()
         # No live providers configured -> stale latest meters are cleared.
         assert body["meters"] == []
+
+
+def test_admin_codex_page_available(settings):
+    with _client(settings) as client:
+        resp = client.get("/admin/codex")
+        assert resp.status_code == 200
+        assert "Codex Account Manager" in resp.text
+
+
+def test_admin_codex_upload_requires_admin_key(settings, tmp_path):
+    settings.codex_auth_upload_dir = tmp_path
+    settings.codex_accounts_file = tmp_path / "codex-accounts.json"
+    payload = {
+        "label": "backup",
+        "auth_json": {"tokens": {"refresh_token": "rt-test"}},
+        "refresh": False,
+    }
+    with _client(settings) as client:
+        resp = client.post("/api/v1/admin/codex/accounts", json=payload)
+        assert resp.status_code == 403
+
+
+def test_admin_codex_upload_persists_registry(settings, tmp_path):
+    settings.codex_auth_upload_dir = tmp_path
+    settings.codex_accounts_file = tmp_path / "codex-accounts.json"
+    payload = {
+        "label": "backup",
+        "auth_json": {"tokens": {"refresh_token": "rt-test", "access_token": "at-test"}},
+        "refresh": False,
+    }
+    with _client(settings) as client:
+        resp = client.post(
+            "/api/v1/admin/codex/accounts",
+            headers={"X-API-Key": "test-admin-key"},
+            json=payload,
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["account_id"] == "codex-backup"
+        assert (tmp_path / "codex-backup-auth.json").exists()
+        assert (tmp_path / "codex-accounts.json").exists()
+
+        listed = client.get(
+            "/api/v1/admin/codex/accounts",
+            headers={"X-API-Key": "test-admin-key"},
+        )
+        assert listed.status_code == 200
+        assert listed.json()["accounts"][0]["label"] == "backup"
+
+
+def test_admin_codex_upload_rejects_missing_refresh_token(settings, tmp_path):
+    settings.codex_auth_upload_dir = tmp_path
+    settings.codex_accounts_file = tmp_path / "codex-accounts.json"
+    with _client(settings) as client:
+        resp = client.post(
+            "/api/v1/admin/codex/accounts",
+            headers={"X-API-Key": "test-admin-key"},
+            json={"label": "backup", "auth_json": {"tokens": {}}, "refresh": False},
+        )
+        assert resp.status_code == 400

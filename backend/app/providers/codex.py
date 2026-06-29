@@ -75,7 +75,10 @@ class CodexAdapter(ProviderAdapter):
 
     @property
     def enabled(self) -> bool:
-        return bool(self.settings.codex_accounts.strip())
+        try:
+            return bool(self.settings.codex_account_configs())
+        except ValueError:
+            return True
 
     async def _get_client(self) -> httpx.AsyncClient:
         if self._client is None or self._client.is_closed:
@@ -456,3 +459,5 @@ def _persist_tokens(
     except OSError:
         # Read-only mounts are acceptable; we just won't persist the refresh.
         pass
+
+

@@ -1,0 +1,275 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI Usage Modern Variants</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px) 0 0 / 32px 32px,
+        linear-gradient(rgba(255,255,255,.02) 1px, transparent 1px) 0 0 / 32px 32px,
+        radial-gradient(circle at 50% 10%, #172024 0, #090b0d 58%, #050607 100%);
+      color: #e7edf0;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      padding: 28px 18px;
+    }
+    main { max-width: 1180px; margin: 0 auto; display: grid; gap: 22px; }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      gap: 16px;
+      border-bottom: 1px solid #314047;
+      padding-bottom: 12px;
+    }
+    h1, h2, p { margin: 0; }
+    h1 { font-size: 20px; text-transform: uppercase; color: #e7edf0; }
+    p { color: #9aa8af; line-height: 1.45; font-size: 13px; }
+    a { color: #38bdf8; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 22px; align-items: start; }
+    .variant {
+      display: grid;
+      gap: 10px;
+      padding: 14px;
+      background: #0c1012;
+      border: 1px solid #2d3940;
+      box-shadow: 0 18px 48px rgba(0,0,0,.4);
+    }
+    .variant h2 { font-size: 14px; text-transform: uppercase; color: #e7edf0; }
+    canvas {
+      display: block;
+      width: 640px;
+      height: 480px;
+      max-width: 100%;
+      height: auto;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+      background: #080a0c;
+      border: 1px solid #0a0c0e;
+    }
+    .caption { min-height: 56px; }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Modern ESP32 Dashboard Variants</h1>
+        <p>Non-8-bit directions for the same 320x240 landscape usage data. Retro variants remain in <a href="variants.html">variants.html</a>.</p>
+      </div>
+      <p>Target: CYD 320x240 / ILI9341</p>
+    </header>
+
+    <section class="grid">
+      <article class="variant">
+        <h2>01 Data Center Rack Panel</h2>
+        <canvas id="rack" width="320" height="240"></canvas>
+        <p class="caption">Hardware appliance feel: LED status columns, rack-unit rows, restrained colors, very glanceable.</p>
+      </article>
+      <article class="variant">
+        <h2>02 Minimal Trading Terminal</h2>
+        <canvas id="trading" width="320" height="240"></canvas>
+        <p class="caption">Finance terminal feel: dense but clean, numeric hierarchy, precision bars, calm dark palette.</p>
+      </article>
+    </section>
+  </main>
+
+  <script>
+    const meters = [
+      { id: 'codex-main-5h', p: 'codex', label: 'CODEX 5H', pct: 79, status: 'ok', meta: '2H59' },
+      { id: 'codex-main-weekly', p: 'codex', label: 'CODEX WK', pct: 70, status: 'ok', meta: '19H' },
+      { id: 'copilot-personal-chat', p: 'copilot', label: 'GH CHAT', pct: 88, status: 'ok', meta: 'JUL01' },
+      { id: 'copilot-personal-completions', p: 'copilot', label: 'GH CODE', pct: 96, status: 'ok', meta: 'JUL01' },
+      { id: 'deepseek-default-USD', p: 'deepseek', label: 'DEEPSEEK', pct: 14, status: 'warning', meta: '$0.71/$5' },
+    ];
+
+    function setup(id) {
+      const canvas = document.getElementById(id);
+      const ctx = canvas.getContext('2d');
+      ctx.imageSmoothingEnabled = false;
+      return ctx;
+    }
+    function rect(ctx, x, y, w, h, color) { ctx.fillStyle = color; ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); }
+    function text(ctx, value, x, y, color, size = 10, align = 'left') {
+      ctx.fillStyle = color;
+      ctx.font = `${size}px monospace`;
+      ctx.textAlign = align;
+      ctx.textBaseline = 'top';
+      ctx.fillText(value, Math.round(x), Math.round(y));
+    }
+    function line(ctx, x1, y1, x2, y2, color) { ctx.strokeStyle = color; ctx.beginPath(); ctx.moveTo(x1 + .5, y1 + .5); ctx.lineTo(x2 + .5, y2 + .5); ctx.stroke(); }
+    function border(ctx, x, y, w, h, color) { rect(ctx, x, y, w, 1, color); rect(ctx, x, y + h - 1, w, 1, color); rect(ctx, x, y, 1, h, color); rect(ctx, x + w - 1, y, 1, h, color); }
+    function clampPct(pct) { return Math.max(0, Math.min(100, pct)); }
+
+    function providerColor(m) {
+      if (m.status === 'warning') return '#f59e0b';
+      if (m.status === 'critical') return '#ef4444';
+      if (m.p === 'codex') return '#38bdf8';
+      if (m.p === 'copilot') return '#22c55e';
+      if (m.p === 'deepseek') return '#f59e0b';
+      return '#94a3b8';
+    }
+
+    function drawBar(ctx, x, y, w, h, pct, color, empty = '#1f2933') {
+      rect(ctx, x, y, w, h, empty);
+      const fill = Math.round(w * clampPct(pct) / 100);
+      rect(ctx, x, y, fill, h, color);
+      rect(ctx, x, y, w, 1, 'rgba(255,255,255,.2)');
+    }
+
+    function drawLed(ctx, x, y, color, active = true) {
+      rect(ctx, x, y, 8, 8, active ? color : '#1f2933');
+      rect(ctx, x + 1, y + 1, 2, 2, active ? '#ffffff' : '#334155');
+      rect(ctx, x + 3, y + 3, 3, 3, active ? '#0b0f12' : '#111827');
+    }
+
+    function drawRackPort(ctx, x, y, filled, color) {
+      rect(ctx, x, y, 9, 7, filled ? color : '#1d252b');
+      rect(ctx, x, y + 6, 9, 1, '#060708');
+    }
+
+    function drawRackModule(ctx, m, x, y, w, h, index) {
+      const c = providerColor(m);
+      rect(ctx, x, y, w, h, '#10171b');
+      border(ctx, x, y, w, h, '#314047');
+      rect(ctx, x + 1, y + 1, w - 2, 3, index % 2 ? '#1b252b' : '#202b31');
+      drawLed(ctx, x + 6, y + 9, c, true);
+      text(ctx, m.label, x + 20, y + 6, '#e7edf0', 9);
+      text(ctx, m.status === 'warning' ? 'ATTN' : 'READY', x + 20, y + 18, m.status === 'warning' ? '#f59e0b' : '#22c55e', 7);
+      const filled = Math.round(clampPct(m.pct) / 12.5);
+      for (let i = 0; i < 8; i++) drawRackPort(ctx, x + 72 + i * 12, y + 9, i < filled, c);
+      text(ctx, `${m.pct}`, x + w - 34, y + 6, c, 16, 'right');
+      text(ctx, '%', x + w - 20, y + 10, '#94a3b8', 8);
+      text(ctx, m.meta, x + w - 8, y + 20, '#94a3b8', 7, 'right');
+    }
+
+    function drawRack() {
+      const ctx = setup('rack');
+      rect(ctx, 0, 0, 320, 240, '#07090a');
+      for (let x = 0; x < 320; x += 10) rect(ctx, x, 0, 1, 240, '#0b1012');
+      for (let y = 0; y < 240; y += 10) rect(ctx, 0, y, 320, 1, '#0b1012');
+
+      rect(ctx, 4, 4, 312, 232, '#0b0f11');
+      border(ctx, 4, 4, 312, 232, '#3b4a52');
+      rect(ctx, 8, 8, 304, 26, '#151f24');
+      border(ctx, 8, 8, 304, 26, '#314047');
+      text(ctx, 'RACK 07  /  AI-USAGE APPLIANCE', 14, 14, '#e7edf0', 10);
+      drawLed(ctx, 272, 14, '#22c55e');
+      drawLed(ctx, 286, 14, '#38bdf8');
+      drawLed(ctx, 300, 14, '#f59e0b');
+
+      drawRackModule(ctx, meters[0], 10, 42, 146, 48, 0);
+      drawRackModule(ctx, meters[1], 164, 42, 146, 48, 1);
+      drawRackModule(ctx, meters[2], 10, 98, 146, 48, 2);
+      drawRackModule(ctx, meters[3], 164, 98, 146, 48, 3);
+
+      const m = meters[4];
+      const c = providerColor(m);
+      rect(ctx, 10, 154, 300, 52, '#11171b');
+      border(ctx, 10, 154, 300, 52, '#4b5563');
+      rect(ctx, 14, 158, 292, 9, '#24160a');
+      text(ctx, 'POWER / WALLET RESERVE', 18, 159, '#f59e0b', 8);
+      drawLed(ctx, 18, 176, c, true);
+      text(ctx, 'DEEPSEEK USD', 34, 173, '#e7edf0', 11);
+      text(ctx, 'LOW BALANCE', 34, 187, '#f59e0b', 8);
+      drawBar(ctx, 146, 178, 116, 12, m.pct, c, '#302016');
+      text(ctx, `${m.pct}%`, 298, 174, c, 16, 'right');
+      text(ctx, m.meta, 298, 192, '#94a3b8', 8, 'right');
+
+      rect(ctx, 8, 216, 304, 14, '#151f24');
+      text(ctx, 'CHASSIS: OK', 14, 219, '#22c55e', 8);
+      text(ctx, 'HTTP 200', 304, 219, '#38bdf8', 8, 'right');
+    }
+
+    function terminalColor(m) {
+      if (m.status === 'warning') return '#f59e0b';
+      if (m.status === 'critical') return '#ef4444';
+      return m.pct >= 85 ? '#22c55e' : '#38bdf8';
+    }
+
+    function drawSpark(ctx, x, y, w, h, color, values) {
+      const n = values.length;
+      for (let i = 1; i < n; i++) {
+        const x1 = x + Math.round((i - 1) * w / (n - 1));
+        const x2 = x + Math.round(i * w / (n - 1));
+        const y1 = y + h - Math.round(values[i - 1] * h);
+        const y2 = y + h - Math.round(values[i] * h);
+        line(ctx, x1, y1, x2, y2, color);
+      }
+    }
+
+    function candle(ctx, x, y, h, color, high, low, open, close) {
+      const cy = y + h;
+      const yh = cy - Math.round(high * h);
+      const yl = cy - Math.round(low * h);
+      const yo = cy - Math.round(open * h);
+      const yc = cy - Math.round(close * h);
+      line(ctx, x + 2, yh, x + 2, yl, color);
+      rect(ctx, x, Math.min(yo, yc), 5, Math.max(2, Math.abs(yo - yc)), color);
+    }
+
+    function drawTrading() {
+      const ctx = setup('trading');
+      rect(ctx, 0, 0, 320, 240, '#06080d');
+      rect(ctx, 0, 0, 320, 22, '#0c111a');
+      text(ctx, 'AIQX  RESOURCE EXCHANGE', 7, 6, '#e5e7eb', 10);
+      text(ctx, 'LIVE', 244, 6, '#22c55e', 8);
+      text(ctx, '00:42', 309, 6, '#64748b', 8, 'right');
+      line(ctx, 0, 22, 320, 22, '#1f2937');
+
+      rect(ctx, 8, 30, 137, 74, '#080d14');
+      border(ctx, 8, 30, 137, 74, '#1f2937');
+      text(ctx, 'USAGE INDEX', 14, 36, '#64748b', 8);
+      text(ctx, '69.4', 14, 50, '#e5e7eb', 24);
+      text(ctx, '+4.2 CAP', 92, 56, '#22c55e', 9);
+      const candles = [
+        [0.9,0.1,0.2,0.7,'#22c55e'], [0.8,0.2,0.7,0.4,'#ef4444'], [0.7,0.2,0.3,0.55,'#22c55e'],
+        [0.95,0.35,0.5,0.8,'#22c55e'], [0.82,0.3,0.75,0.6,'#ef4444'], [0.9,0.4,0.55,0.86,'#22c55e'],
+      ];
+      candles.forEach((c, i) => candle(ctx, 16 + i * 16, 75, 22, c[4], c[0], c[1], c[2], c[3]));
+
+      rect(ctx, 153, 30, 159, 74, '#080d14');
+      border(ctx, 153, 30, 159, 74, '#1f2937');
+      text(ctx, 'ALERT BOOK', 159, 36, '#64748b', 8);
+      text(ctx, 'DEEPSEEK WALLET', 159, 51, '#e5e7eb', 9);
+      text(ctx, '14%', 300, 48, '#f59e0b', 20, 'right');
+      drawBar(ctx, 159, 76, 144, 7, 14, '#f59e0b', '#1f2937');
+      text(ctx, '$0.71 / $5.00', 159, 89, '#94a3b8', 8);
+
+      text(ctx, 'SYMBOL', 10, 115, '#64748b', 8);
+      text(ctx, 'REM', 88, 115, '#64748b', 8, 'right');
+      text(ctx, 'RESET', 141, 115, '#64748b', 8, 'right');
+      text(ctx, 'TREND', 304, 115, '#64748b', 8, 'right');
+      line(ctx, 8, 127, 312, 127, '#1f2937');
+
+      const trends = [
+        [0.2,0.35,0.3,0.55,0.5,0.75,0.79],
+        [0.35,0.4,0.5,0.44,0.58,0.62,0.7],
+        [0.6,0.55,0.72,0.68,0.82,0.8,0.88],
+        [0.76,0.82,0.78,0.9,0.86,0.94,0.96],
+        [0.5,0.42,0.35,0.28,0.22,0.18,0.14],
+      ];
+      meters.forEach((m, i) => {
+        const y = 136 + i * 18;
+        const c = terminalColor(m);
+        if (i % 2) rect(ctx, 8, y - 3, 304, 16, '#080c12');
+        text(ctx, m.label, 10, y, '#e5e7eb', 9);
+        text(ctx, `${m.pct}%`, 88, y, c, 9, 'right');
+        text(ctx, m.meta, 141, y, '#94a3b8', 8, 'right');
+        drawBar(ctx, 154, y + 3, 66, 5, m.pct, c, '#1f2937');
+        drawSpark(ctx, 236, y + 1, 66, 10, c, trends[i]);
+      });
+
+      line(ctx, 8, 228, 312, 228, '#1f2937');
+      text(ctx, 'ORDER ROUTE: API OK  /  CLOUD OK', 10, 231, '#64748b', 7);
+    }
+
+    drawRack();
+    drawTrading();
+  </script>
+</body>
+</html>

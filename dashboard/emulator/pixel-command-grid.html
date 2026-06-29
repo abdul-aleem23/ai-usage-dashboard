@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pixel Command Grid - AI Usage Dashboard</title>
+  <style>
+    :root {
+      --bg: #05090a;
+      --panel: #0b1517;
+      --frame: #1e5b62;
+      --frame-hot: #36e6ff;
+      --text: #d5fff7;
+      --muted: #6ca6a5;
+      --codex: #00d9ff;
+      --copilot: #39ff14;
+      --deepseek: #ffcc33;
+      --danger: #ff4050;
+      --ink: #020405;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(90deg, rgba(54, 230, 255, .035) 1px, transparent 1px) 0 0 / 40px 40px,
+        radial-gradient(circle at 50% 0%, #10282d 0, #071012 44%, #020405 100%);
+      color: var(--text);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      padding: 28px 18px;
+    }
+
+    main {
+      max-width: 980px;
+      margin: 0 auto;
+      display: grid;
+      gap: 18px;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      gap: 16px;
+      padding-bottom: 12px;
+      border-bottom: 3px solid var(--frame);
+    }
+
+    h1, p { margin: 0; }
+    h1 {
+      color: var(--frame-hot);
+      font-size: 20px;
+      line-height: 1;
+      text-transform: uppercase;
+    }
+
+    p {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    a { color: var(--deepseek); }
+
+    .stage {
+      display: grid;
+      grid-template-columns: minmax(320px, 640px) minmax(220px, 1fr);
+      gap: 18px;
+      align-items: start;
+    }
+
+    .screen-wrap {
+      padding: 12px;
+      background: #030606;
+      border: 3px solid #0f383e;
+      box-shadow:
+        0 0 0 3px #020405,
+        0 18px 60px rgba(0, 0, 0, .6),
+        0 0 34px rgba(0, 229, 255, .12);
+    }
+
+    canvas {
+      display: block;
+      width: 640px;
+      height: 480px;
+      max-width: 100%;
+      background: var(--bg);
+    }
+
+    .notes {
+      display: grid;
+      gap: 12px;
+      padding: 14px;
+      background: rgba(5, 9, 10, .78);
+      border: 2px solid var(--frame);
+    }
+
+    .note {
+      display: grid;
+      gap: 4px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid rgba(108, 166, 165, .35);
+    }
+
+    .note:last-child {
+      padding-bottom: 0;
+      border-bottom: 0;
+    }
+
+    .note strong {
+      color: var(--text);
+      font-size: 12px;
+      text-transform: uppercase;
+    }
+
+    .swatches {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+    }
+
+    .swatch {
+      min-height: 26px;
+      border: 2px solid #020405;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.12);
+    }
+
+    @media (max-width: 860px) {
+      .stage { grid-template-columns: 1fr; }
+      header { align-items: start; flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>03 Pixel Command Grid</h1>
+        <p>Locked ESP32 direction. Comparison variants remain in <a href="retro.html">retro.html</a>.</p>
+      </div>
+      <p>320x240 landscape / canvas-only</p>
+    </header>
+
+    <section class="stage">
+      <div class="screen-wrap">
+        <canvas id="screen" width="320" height="240" aria-label="Pixel Command Grid ESP32 dashboard preview"></canvas>
+      </div>
+
+      <aside class="notes" aria-label="Design notes">
+        <div class="note">
+          <strong>Layout</strong>
+          <p>Cleaner retro terminal layout with full platform wording and smooth glance bars.</p>
+        </div>
+        <div class="note">
+          <strong>Data Model</strong>
+          <p>Each backend meter becomes one row. Account labels stay dynamic and are not hardcoded.</p>
+        </div>
+        <div class="note">
+          <strong>Firmware Fit</strong>
+          <p>Drawn with rectangles, lines, and text. No image assets are used.</p>
+        </div>
+        <div class="swatches" aria-hidden="true">
+          <span class="swatch" style="background: var(--codex)"></span>
+          <span class="swatch" style="background: var(--copilot)"></span>
+          <span class="swatch" style="background: var(--deepseek)"></span>
+          <span class="swatch" style="background: var(--danger)"></span>
+        </div>
+      </aside>
+    </section>
+  </main>
+
+  <script>
+    const meters = [
+      { platform: 'Codex', account: 'main', label: '5h limit', remaining: 79, status: 'ok', reset: '2h 59m' },
+      { platform: 'Codex', account: 'main', label: 'Weekly limit', remaining: 70, status: 'ok', reset: '19h 06m' },
+      { platform: 'GitHub Copilot', account: 'personal', label: 'Chat', remaining: 88, status: 'ok', reset: 'Jul 01' },
+      { platform: 'GitHub Copilot', account: 'personal', label: 'Completions', remaining: 96, status: 'ok', reset: 'Jul 01' },
+      { platform: 'DeepSeek', account: 'wallet', label: 'Balance', remaining: 14, status: 'warning', reset: '$0.71 left' },
+    ];
+
+    const palette = {
+      bg: '#05090a',
+      panel: '#0b1517',
+      panelAlt: '#081215',
+      border: '#1e5b62',
+      borderHot: '#36e6ff',
+      text: '#d5fff7',
+      muted: '#6ca6a5',
+      track: '#10272b',
+      codex: '#00d9ff',
+      copilot: '#39ff14',
+      deepseek: '#ffcc33',
+      warning: '#ffcc33',
+      critical: '#ff4050',
+      error: '#ff4050',
+      black: '#020405',
+      white: '#f3fff8',
+    };
+
+    const canvas = document.getElementById('screen');
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = true;
+
+    function rect(x, y, w, h, color) {
+      ctx.fillStyle = color;
+      ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h));
+    }
+
+    function text(value, x, y, color, size = 8, align = 'left', weight = '400') {
+      ctx.fillStyle = color;
+      ctx.font = `${weight} ${size}px Arial, sans-serif`;
+      ctx.textAlign = align;
+      ctx.textBaseline = 'top';
+      ctx.fillText(value, Math.round(x), Math.round(y));
+    }
+
+    function border(x, y, w, h, color, t = 1) {
+      rect(x, y, w, t, color);
+      rect(x, y + h - t, w, t, color);
+      rect(x, y, t, h, color);
+      rect(x + w - t, y, t, h, color);
+    }
+
+    function line(x1, y1, x2, y2, color) {
+      ctx.strokeStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(x1 + .5, y1 + .5);
+      ctx.lineTo(x2 + .5, y2 + .5);
+      ctx.stroke();
+    }
+
+    function meterColor(m) {
+      if (m.status === 'warning') return palette.warning;
+      if (m.status === 'critical' || m.status === 'error') return palette.error;
+      if (m.platform === 'Codex') return palette.codex;
+      if (m.platform === 'GitHub Copilot') return palette.copilot;
+      if (m.platform === 'DeepSeek') return palette.deepseek;
+      return palette.text;
+    }
+
+    function platformLabel(m) {
+      if (m.platform === 'GitHub Copilot') return 'Copilot';
+      return m.platform;
+    }
+
+    function lineBar(x, y, w, h, pct, fill) {
+      const clamped = Math.max(0, Math.min(100, pct || 0));
+      rect(x, y, w, h, palette.track);
+      rect(x, y, Math.round(w * clamped / 100), h, fill);
+      rect(x, y, Math.max(1, Math.round(w * clamped / 100)), 1, palette.white);
+      border(x, y, w, h, '#163d43', 1);
+    }
+
+    function drawBackground() {
+      rect(0, 0, 320, 240, palette.bg);
+      rect(0, 0, 320, 240, '#061113');
+      for (let x = 0; x < 320; x += 40) rect(x, 0, 1, 240, '#0a1c20');
+      border(5, 5, 310, 230, palette.border, 1);
+      border(8, 8, 304, 224, '#0d2f35', 1);
+    }
+
+    function drawHeader() {
+      rect(11, 11, 298, 20, '#0d2024');
+      rect(11, 31, 298, 2, palette.borderHot);
+      text('AI Usage Monitor', 16, 15, palette.text, 11, 'left', '700');
+      text('WiFi OK', 234, 16, palette.copilot, 8, 'left', '700');
+      text('00:42', 304, 16, palette.muted, 8, 'right');
+    }
+
+    function drawRows() {
+      meters.forEach((m, i) => {
+        const y = 42 + i * 33;
+        const c = meterColor(m);
+        rect(11, y - 2, 298, 29, i % 2 ? palette.panelAlt : palette.panel);
+        rect(11, y - 2, 3, 29, c);
+        text(platformLabel(m), 19, y, c, 10, 'left', '700');
+        text(`${m.account} / ${m.label}`, 19, y + 12, palette.text, 9);
+        text(`${m.remaining}% left`, 126, y, c, 10, 'right', '700');
+        lineBar(137, y + 2, 102, 10, m.remaining, c);
+        text(m.status === 'warning' ? 'LOW' : 'OK', 249, y, c, 8, 'left', '700');
+        text(m.reset, 304, y + 12, palette.muted, 8, 'right');
+      });
+    }
+
+    function drawFooter() {
+      line(11, 214, 309, 214, palette.border);
+      text('Endpoint: /summary.compact', 16, 220, palette.muted, 8);
+      text('Next refresh 3m', 304, 220, palette.deepseek, 8, 'right');
+    }
+
+    function draw() {
+      drawBackground();
+      drawHeader();
+      drawRows();
+      drawFooter();
+    }
+
+    draw();
+  </script>
+</body>
+</html>

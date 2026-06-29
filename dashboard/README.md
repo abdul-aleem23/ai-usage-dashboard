@@ -80,3 +80,23 @@ Touch can be added later for:
 - Switching between overview and provider detail pages.
 - Triggering a manual refresh.
 - Showing reset times or provider errors.
+
+## Local Visual Emulator
+
+A dependency-free browser emulator is available at:
+
+```text
+dashboard/emulator/pixel-command-grid.html
+```
+
+It renders the locked 03 Pixel Command Grid theme as a 320x240 landscape preview using sample compact API data. Earlier comparison concepts are kept under `dashboard/emulator/` for reference.
+
+## Firmware
+
+The PlatformIO firmware skeleton lives at:
+
+```text
+dashboard/firmware/
+```
+
+Copy `dashboard/firmware/include/config.example.h` to `dashboard/firmware/include/config.h` when the board arrives, then fill in Wi-Fi and ESP32 API key values locally. The real `config.h` is ignored by git.

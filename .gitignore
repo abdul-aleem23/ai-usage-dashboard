@@ -26,3 +26,8 @@ cloudflare/*.json
 cloudflared/
 # Local agent/planning state
 .opencode/
+
+# ESP32 firmware local config
+dashboard/firmware/include/config.h
+dashboard/firmware/.pio/
+

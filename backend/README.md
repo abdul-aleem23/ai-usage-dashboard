@@ -78,3 +78,23 @@ OPENCODE_ENABLED=false
 ## Endpoints
 
 See [API](../docs/API.md).
+## Codex Account Manager
+
+Codex auth tokens are account-scoped. If you log into a different Codex/OpenAI account, the previous account's refresh token can stop working. The backend therefore supports adding or replacing Codex auth JSON files through an admin page:
+
+```text
+https://ai-usage.forexstreet-bmm.com/admin/codex
+```
+
+Flow:
+
+1. Log into the desired Codex account on a trusted machine.
+2. Copy the Codex auth JSON for that account.
+3. Open `/admin/codex` on this service.
+4. Enter the admin API key, a label such as `main` or `backup`, and the auth JSON.
+5. Save and refresh.
+
+The account label is user-defined. It is shown in API responses and on the ESP32 dashboard. The auth JSON is stored in the server `secrets/` mount, and the registry is stored as `codex-accounts.json` in the same directory.
+
+This page does not perform browser login. It only stores auth JSON that you provide.
+

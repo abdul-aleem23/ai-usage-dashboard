@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI Usage Retro Finalists</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(90deg, rgba(255,176,0,.035) 1px, transparent 1px) 0 0 / 24px 24px,
+        linear-gradient(rgba(0,200,255,.025) 1px, transparent 1px) 0 0 / 24px 24px,
+        radial-gradient(circle at 50% 5%, #2b1a13 0, #100d0b 46%, #050505 100%);
+      color: #f2e6c9;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      padding: 28px 18px;
+    }
+    main { max-width: 1180px; margin: 0 auto; display: grid; gap: 22px; }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      gap: 16px;
+      border-bottom: 3px solid #5a5148;
+      padding-bottom: 12px;
+    }
+    h1, h2, p { margin: 0; }
+    h1 { font-size: 20px; text-transform: uppercase; color: #ffb000; }
+    p { color: #a69a83; line-height: 1.45; font-size: 13px; }
+    a { color: #00c8ff; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 22px; align-items: start; }
+    .variant {
+      display: grid;
+      gap: 10px;
+      padding: 14px;
+      background: #15110e;
+      border: 3px solid #4b4038;
+      box-shadow: 0 0 0 3px #070707, 0 18px 48px rgba(0,0,0,.45);
+    }
+    .variant h2 { font-size: 14px; text-transform: uppercase; color: #f2e6c9; }
+    canvas {
+      display: block;
+      width: 640px;
+      height: 480px;
+      max-width: 100%;
+      height: auto;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+      background: #090909;
+      border: 2px solid #0a0a0a;
+    }
+    .caption { min-height: 58px; }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Retro HUD Finalists</h1>
+        <p>Focused 320x240 8-bit / Doom-inspired candidates. Original baseline remains in <a href="index.html">index.html</a>.</p>
+      </div>
+      <p>Landscape CYD / 320x240</p>
+    </header>
+
+    <section class="grid">
+      <article class="variant">
+        <h2>01 Doom Console Dense</h2>
+        <canvas id="doomDense" width="320" height="240"></canvas>
+        <p class="caption">Closest to the original: compact, readable, saturated status bars, strong HUD frame.</p>
+      </article>
+      <article class="variant">
+        <h2>02 Arcade Warning Stack</h2>
+        <canvas id="arcadeStack" width="320" height="240"></canvas>
+        <p class="caption">More colorful and game-like: bigger percentage blocks and warning-heavy treatment.</p>
+      </article>
+      <article class="variant">
+        <h2>03 Pixel Command Grid</h2>
+        <canvas id="commandGrid" width="320" height="240"></canvas>
+        <p class="caption">Locked direction. A cleaner 8-bit command screen: still pixelated, but more organized and firmware-friendly. Continue in <a href="pixel-command-grid.html">pixel-command-grid.html</a>.</p>
+      </article>
+    </section>
+  </main>
+
+  <script>
+    const meters = [
+      { id: 'codex-main-5h', p: 'codex', label: 'CODEX 5H', pct: 79, status: 'ok', meta: '2H59' },
+      { id: 'codex-main-weekly', p: 'codex', label: 'CODEX WK', pct: 70, status: 'ok', meta: '19H' },
+      { id: 'copilot-personal-chat', p: 'copilot', label: 'GH CHAT', pct: 88, status: 'ok', meta: 'JUL01' },
+      { id: 'copilot-personal-completions', p: 'copilot', label: 'GH CODE', pct: 96, status: 'ok', meta: 'JUL01' },
+      { id: 'deepseek-default-USD', p: 'deepseek', label: 'DEEPSEEK', pct: 14, status: 'warning', meta: '$0.71/$5' },
+    ];
+
+    function setup(id) { const c = document.getElementById(id); const ctx = c.getContext('2d'); ctx.imageSmoothingEnabled = false; return ctx; }
+    function rect(ctx, x, y, w, h, color) { ctx.fillStyle = color; ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); }
+    function text(ctx, value, x, y, color, size = 10, align = 'left') { ctx.fillStyle = color; ctx.font = `${size}px monospace`; ctx.textAlign = align; ctx.textBaseline = 'top'; ctx.fillText(value, Math.round(x), Math.round(y)); }
+    function border(ctx, x, y, w, h, color, t = 2) { rect(ctx, x, y, w, t, color); rect(ctx, x, y + h - t, w, t, color); rect(ctx, x, y, t, h, color); rect(ctx, x + w - t, y, t, h, color); }
+    function line(ctx, x1, y1, x2, y2, color) { ctx.strokeStyle = color; ctx.beginPath(); ctx.moveTo(x1 + .5, y1 + .5); ctx.lineTo(x2 + .5, y2 + .5); ctx.stroke(); }
+    function pctClamp(p) { return Math.max(0, Math.min(100, p)); }
+
+    function color(m, palette) {
+      if (m.status === 'warning') return palette.warning;
+      if (m.status === 'critical') return palette.critical;
+      if (m.p === 'codex') return palette.codex;
+      if (m.p === 'copilot') return palette.copilot;
+      if (m.p === 'deepseek') return palette.deepseek;
+      return palette.text;
+    }
+
+    function segmented(ctx, x, y, w, h, pct, fill, empty, segments = 18, gap = 2) {
+      rect(ctx, x, y, w, h, '#050505');
+      border(ctx, x, y, w, h, '#5a5148', 1);
+      const inner = 3;
+      const segW = Math.floor((w - inner * 2 - gap * (segments - 1)) / segments);
+      const filled = Math.round(pctClamp(pct) / 100 * segments);
+      for (let i = 0; i < segments; i++) {
+        const sx = x + inner + i * (segW + gap);
+        rect(ctx, sx, y + inner, segW, h - inner * 2, i < filled ? fill : empty);
+        if (i < filled) rect(ctx, sx, y + inner, segW, 1, '#fff1c0');
+      }
+    }
+
+    function drawDoomDense() {
+      const ctx = setup('doomDense');
+      const P = { bg:'#090909', panel:'#171717', header:'#2a201a', border:'#5a5148', text:'#f2e6c9', muted:'#a69a83', empty:'#3a302c', codex:'#00c8ff', copilot:'#00d26a', deepseek:'#ffb000', warning:'#ffb000', critical:'#e02020' };
+      rect(ctx, 0, 0, 320, 240, P.bg);
+      for (let y = 0; y < 240; y += 4) rect(ctx, 0, y, 320, 1, '#101010');
+      rect(ctx, 4, 4, 312, 24, P.header); border(ctx, 4, 4, 312, 24, P.border, 2);
+      text(ctx, 'AI USAGE HUD', 12, 11, P.text, 11); text(ctx, 'NET:OK', 225, 11, '#39ff14', 10); text(ctx, '00:42', 304, 11, P.muted, 10, 'right');
+      meters.forEach((m, i) => {
+        const y = 34 + i * 38; const c = color(m, P);
+        rect(ctx, 6, y, 308, 35, P.panel); rect(ctx, 6, y, 4, 35, c); rect(ctx, 10, y, 304, 1, '#3b332d');
+        text(ctx, m.label, 16, y + 5, P.text, 10); text(ctx, m.status === 'warning' ? 'WARN' : 'OK', 208, y + 5, c, 9); text(ctx, `${m.pct}%`, 304, y + 5, c, 11, 'right');
+        segmented(ctx, 16, y + 19, 186, 13, m.pct, c, P.empty, 18, 2); text(ctx, m.meta, 212, y + 21, P.muted, 8);
+      });
+      rect(ctx, 4, 226, 312, 10, P.header); text(ctx, 'API:OK', 12, 227, '#39ff14', 8); text(ctx, 'LAST UPDATE 00:42', 304, 227, P.muted, 8, 'right');
+    }
+
+    function drawArcadeStack() {
+      const ctx = setup('arcadeStack');
+      const P = { bg:'#080405', panel:'#1d0f0d', header:'#4a100c', border:'#7b4a24', text:'#ffe4b5', muted:'#c18a5b', empty:'#3b1814', codex:'#20d8ff', copilot:'#75ff3b', deepseek:'#ffb000', warning:'#ffb000', critical:'#ff3030' };
+      rect(ctx, 0, 0, 320, 240, P.bg);
+      for (let x = 0; x < 320; x += 16) rect(ctx, x, 0, 2, 240, '#120707');
+      rect(ctx, 0, 0, 320, 20, P.header); rect(ctx, 0, 20, 320, 4, P.warning);
+      text(ctx, 'RESOURCE COMBAT PANEL', 8, 6, P.text, 10); text(ctx, 'READY', 306, 6, '#75ff3b', 9, 'right');
+      meters.forEach((m, i) => {
+        const y = 31 + i * 38; const c = color(m, P);
+        rect(ctx, 8, y, 304, 32, P.panel); border(ctx, 8, y, 304, 32, P.border, 2);
+        rect(ctx, 12, y + 6, 42, 20, m.status === 'warning' ? '#3b1808' : '#10100d'); border(ctx, 12, y + 6, 42, 20, c, 1);
+        text(ctx, `${m.pct}`, 33, y + 9, c, 14, 'center'); text(ctx, '%', 49, y + 13, P.muted, 8);
+        text(ctx, m.label, 64, y + 6, P.text, 10); text(ctx, m.meta, 64, y + 19, m.status === 'warning' ? P.warning : P.muted, 8);
+        segmented(ctx, 158, y + 10, 142, 12, m.pct, c, P.empty, 14, 2);
+      });
+      rect(ctx, 0, 224, 320, 16, '#150909'); text(ctx, 'ALERT: DEEPSEEK LOW BALANCE', 9, 228, P.warning, 9); text(ctx, '00:42', 308, 228, P.muted, 9, 'right');
+    }
+
+    function drawCommandGrid() {
+      const ctx = setup('commandGrid');
+      const P = { bg:'#05090a', panel:'#0b1517', header:'#0d2024', border:'#1e5b62', text:'#d5fff7', muted:'#6ca6a5', empty:'#0d2a2d', codex:'#00e5ff', copilot:'#39ff14', deepseek:'#ffcc33', warning:'#ffcc33', critical:'#ff4050' };
+      rect(ctx, 0, 0, 320, 240, P.bg);
+      for (let y = 0; y < 240; y += 3) rect(ctx, 0, y, 320, 1, '#071316');
+      border(ctx, 4, 4, 312, 232, P.border, 1); rect(ctx, 8, 8, 304, 18, P.header);
+      text(ctx, 'AI_USAGE_MON', 12, 12, P.codex, 10); text(ctx, 'SYNC', 250, 12, P.copilot, 8); text(ctx, '00:42', 304, 12, P.muted, 8, 'right');
+      text(ctx, 'SERVICE', 12, 34, P.muted, 8); text(ctx, 'LEFT', 104, 34, P.muted, 8, 'right'); text(ctx, 'BAR', 164, 34, P.muted, 8); text(ctx, 'RESET', 304, 34, P.muted, 8, 'right');
+      line(ctx, 10, 46, 310, 46, P.border);
+      meters.forEach((m, i) => {
+        const y = 55 + i * 32; const c = color(m, P);
+        if (i % 2) rect(ctx, 8, y - 4, 304, 25, '#071012');
+        text(ctx, m.label, 12, y, P.text, 10); text(ctx, `${m.pct}%`, 104, y, c, 10, 'right');
+        segmented(ctx, 116, y + 2, 118, 10, m.pct, c, P.empty, 16, 1); text(ctx, m.meta, 304, y, P.muted, 8, 'right');
+        text(ctx, m.status === 'warning' ? 'WARN' : 'OK', 244, y, c, 8);
+      });
+      text(ctx, 'ENDPOINT: /SUMMARY.COMPACT', 10, 224, P.muted, 8); text(ctx, 'API OK', 306, 224, P.copilot, 8, 'right');
+    }
+
+    drawDoomDense();
+    drawArcadeStack();
+    drawCommandGrid();
+  </script>
+</body>
+</html>
+

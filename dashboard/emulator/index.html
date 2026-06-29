@@ -1,0 +1,267 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI Usage CYD Emulator</title>
+  <style>
+    :root {
+      --bg: #11100f;
+      --page: #201b18;
+      --metal: #5a5148;
+      --text: #f2e6c9;
+      --muted: #a69a83;
+      --red: #e02020;
+      --amber: #ffb000;
+      --green: #39ff14;
+      --cyan: #00c8ff;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background:
+        linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px) 0 0 / 24px 24px,
+        linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px) 0 0 / 24px 24px,
+        radial-gradient(circle at 50% 20%, #33251c 0, #151311 42%, #080807 100%);
+      color: var(--text);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    }
+
+    main {
+      width: min(96vw, 900px);
+      display: grid;
+      gap: 18px;
+      justify-items: center;
+    }
+
+    .shell {
+      padding: 18px;
+      background: #181411;
+      border: 4px solid #4b4038;
+      box-shadow: 0 0 0 4px #090807, 0 22px 60px rgba(0,0,0,.55);
+    }
+
+    canvas {
+      display: block;
+      width: 640px;
+      height: 480px;
+      max-width: 86vw;
+      max-height: 64vh;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+      background: #090909;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+    }
+
+    button {
+      appearance: none;
+      border: 2px solid var(--metal);
+      background: #181818;
+      color: var(--text);
+      padding: 10px 12px;
+      font: inherit;
+      text-transform: uppercase;
+      cursor: pointer;
+    }
+
+    button:hover, button:focus-visible {
+      border-color: var(--amber);
+      color: var(--amber);
+      outline: none;
+    }
+
+    .note {
+      max-width: 700px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="shell" aria-label="320 by 240 ESP32 dashboard preview scaled to 2x">
+      <canvas id="screen" width="320" height="240"></canvas>
+    </div>
+    <div class="controls" aria-label="Preview controls">
+      <button data-mode="normal">Normal</button>
+      <button data-mode="warning">Low Balance</button>
+      <button data-mode="error">Provider Error</button>
+      <button data-mode="offline">Offline</button>
+    </div>
+    <p class="note">
+      This is a browser emulator for the 320x240 Cheap Yellow Display layout. It uses the same compact meter fields the firmware will consume: provider, account label, label, remaining percent, status, and reset text.
+    </p>
+  </main>
+
+  <script>
+    const canvas = document.getElementById('screen');
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+
+    const C = {
+      bg: '#090909',
+      panel: '#171717',
+      panel2: '#24201d',
+      border: '#5a5148',
+      shadow: '#000000',
+      text: '#f2e6c9',
+      muted: '#a69a83',
+      empty: '#3a302c',
+      black: '#060606',
+      codex: '#00c8ff',
+      copilot: '#00d26a',
+      deepseek: '#ffb000',
+      ok: '#39ff14',
+      warning: '#ffb000',
+      critical: '#e02020',
+      error: '#ff4040',
+    };
+
+    const baseMeters = [
+      { id: 'codex-main-5h', p: 'codex', al: 'main', l: '5 hour usage limit', r: 79, s: 'ok', rt: 'Resets 2h59' },
+      { id: 'codex-main-weekly', p: 'codex', al: 'main', l: 'weekly usage limit', r: 70, s: 'ok', rt: 'Resets 19h' },
+      { id: 'copilot-personal-chat', p: 'copilot', al: 'Copilot', l: 'Copilot chat', r: 88, s: 'ok', rt: 'Jul 01' },
+      { id: 'copilot-personal-completions', p: 'copilot', al: 'Copilot', l: 'Copilot completions', r: 96, s: 'ok', rt: 'Jul 01' },
+      { id: 'deepseek-default-USD', p: 'deepseek', al: 'DeepSeek', l: 'DeepSeek wallet (USD)', r: 14, s: 'warning', rt: '$0.71/$5' },
+    ];
+
+    function modeMeters(mode) {
+      const meters = structuredClone(baseMeters);
+      if (mode === 'normal') {
+        meters[4].r = 64; meters[4].s = 'ok'; meters[4].rt = '$3.20/$5';
+      }
+      if (mode === 'error') {
+        meters[0] = { id: 'codex-main-error', p: 'codex', al: 'main', l: 'Codex auth error', r: null, s: 'error', rt: 'REFRESH FAIL' };
+      }
+      if (mode === 'offline') {
+        meters.net = 'OFFLINE';
+      }
+      return meters;
+    }
+
+    function providerColor(p) {
+      if (p === 'codex') return C.codex;
+      if (p === 'copilot') return C.copilot;
+      if (p === 'deepseek') return C.deepseek;
+      return C.muted;
+    }
+
+    function statusColor(s) {
+      if (s === 'ok') return C.ok;
+      if (s === 'warning') return C.warning;
+      if (s === 'critical') return C.critical;
+      if (s === 'error') return C.error;
+      return C.muted;
+    }
+
+    function shortLabel(m) {
+      const id = m.id.toLowerCase();
+      if (id.includes('codex') && id.includes('5h')) return 'CODEX MAIN 5H';
+      if (id.includes('codex') && id.includes('weekly')) return 'CODEX WEEK';
+      if (id.includes('copilot') && id.includes('chat')) return 'GH CHAT';
+      if (id.includes('copilot') && id.includes('completions')) return 'GH CODE';
+      if (id.includes('deepseek')) return 'DEEPSEEK USD';
+      return (m.al + ' ' + m.l).toUpperCase().slice(0, 18);
+    }
+
+    function rect(x, y, w, h, color) {
+      ctx.fillStyle = color;
+      ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h));
+    }
+
+    function text(value, x, y, color = C.text, size = 10, align = 'left') {
+      ctx.fillStyle = color;
+      ctx.font = `${size}px monospace`;
+      ctx.textAlign = align;
+      ctx.textBaseline = 'top';
+      ctx.fillText(value, Math.round(x), Math.round(y));
+    }
+
+    function pixelBorder(x, y, w, h, color = C.border) {
+      rect(x, y, w, 2, color);
+      rect(x, y + h - 2, w, 2, color);
+      rect(x, y, 2, h, color);
+      rect(x + w - 2, y, 2, h, color);
+      rect(x + 4, y + 4, w - 8, 1, '#29231f');
+    }
+
+    function segmentedBar(x, y, w, h, pct, color, state) {
+      rect(x, y, w, h, C.black);
+      pixelBorder(x, y, w, h, C.border);
+      const segments = 18;
+      const gap = 2;
+      const innerX = x + 4;
+      const innerY = y + 4;
+      const segW = Math.floor((w - 8 - (segments - 1) * gap) / segments);
+      const segH = h - 8;
+      const filled = pct == null ? 0 : Math.round((Math.max(0, Math.min(100, pct)) / 100) * segments);
+      for (let i = 0; i < segments; i++) {
+        const sx = innerX + i * (segW + gap);
+        rect(sx, innerY, segW, segH, i < filled ? color : C.empty);
+        if (i < filled && state !== 'error') rect(sx, innerY, segW, 1, '#f2e6c9');
+      }
+      if (state === 'error') {
+        text('NO DATA', x + w / 2, y + 5, C.error, 9, 'center');
+      }
+    }
+
+    function draw(mode = 'warning') {
+      const meters = modeMeters(mode);
+      rect(0, 0, 320, 240, C.bg);
+
+      // Subtle pixel texture.
+      for (let y = 0; y < 240; y += 4) rect(0, y, 320, 1, 'rgba(255,255,255,0.02)');
+      for (let x = 0; x < 320; x += 8) rect(x, 0, 1, 240, 'rgba(255,255,255,0.015)');
+
+      rect(4, 4, 312, 24, C.panel2);
+      pixelBorder(4, 4, 312, 24, C.border);
+      text('AI USAGE HUD', 12, 11, C.text, 11);
+      text(mode === 'offline' ? 'NET:FAIL' : 'NET:OK', 226, 11, mode === 'offline' ? C.error : C.ok, 10);
+      text('00:42', 304, 11, C.muted, 10, 'right');
+
+      const rowH = 38;
+      const startY = 34;
+      meters.forEach((m, i) => {
+        const y = startY + i * rowH;
+        const accent = providerColor(m.p);
+        const state = statusColor(m.s);
+        rect(6, y, 308, rowH - 3, C.panel);
+        rect(6, y, 4, rowH - 3, accent);
+        rect(10, y, 304, 1, '#3b332d');
+        rect(10, y + rowH - 5, 304, 1, '#050505');
+
+        text(shortLabel(m), 16, y + 5, C.text, 10);
+        text(m.s.toUpperCase(), 208, y + 5, state, 9);
+        const pctText = m.r == null ? '--%' : `${m.r}%`;
+        text(pctText, 304, y + 5, state, 11, 'right');
+
+        segmentedBar(16, y + 19, 186, 13, m.r, state, m.s);
+        text((m.rt || 'NO RESET').toUpperCase().slice(0, 14), 212, y + 21, C.muted, 8);
+      });
+
+      rect(4, 226, 312, 10, C.panel2);
+      text('API:OK', 12, 227, C.ok, 8);
+      text(mode === 'offline' ? 'LAST GOOD 00:37' : 'LAST UPDATE 00:42', 304, 227, C.muted, 8, 'right');
+    }
+
+    document.querySelectorAll('button').forEach(button => {
+      button.addEventListener('click', () => draw(button.dataset.mode));
+    });
+
+    draw('warning');
+  </script>
+</body>
+</html>

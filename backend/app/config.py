@@ -10,8 +10,9 @@ from __future__ import annotations
 
 import re
 import os
+import json
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import Request
 from pydantic import BaseModel, Field, field_validator
@@ -58,6 +59,8 @@ class Settings(BaseSettings):
 
     # --- Codex / OpenAI subscription ---------------------------------------
     codex_accounts: str = Field("", description="Comma-separated account labels")
+    codex_accounts_file: Optional[Path] = Field(None, description="JSON registry for admin-added Codex accounts")
+    codex_auth_upload_dir: Path = Field(Path("/secrets"), description="Directory for admin-added Codex auth JSON files")
     codex_oauth_token_url: str = "https://auth.openai.com/oauth/token"
     codex_usage_url: str = "https://chatgpt.com/backend-api/wham/usage"
 
@@ -104,8 +107,10 @@ class Settings(BaseSettings):
         return v
 
     def codex_account_configs(self) -> list[CodexAccountConfig]:
-        """Resolve ``CODEX_ACCOUNTS`` + ``CODEX_<LABEL>_AUTH_FILE`` into configs."""
+        """Resolve configured and admin-added Codex account auth files."""
         configs: list[CodexAccountConfig] = []
+        seen: set[str] = set()
+
         for raw in self.codex_accounts.split(","):
             label = raw.strip()
             if not label:
@@ -124,6 +129,25 @@ class Settings(BaseSettings):
                     auth_file=_resolve_config_path(path_value),
                 )
             )
+            seen.add(slug.lower())
+
+        for entry in _load_codex_accounts_file(self.codex_accounts_file):
+            label = str(entry.get("label") or "").strip()
+            auth_file = str(entry.get("auth_file") or "").strip()
+            if not label or not auth_file:
+                continue
+            slug = _slug(label).lower()
+            if slug in seen:
+                continue
+            configs.append(
+                CodexAccountConfig(
+                    label=label,
+                    slug=slug,
+                    auth_file=_resolve_config_path(auth_file),
+                )
+            )
+            seen.add(slug)
+
         return configs
 
     def copilot_token_value(self) -> Optional[str]:
@@ -202,3 +226,27 @@ def get_settings(request: Request) -> Settings:
     if settings is not None:
         return settings
     return Settings()  # type: ignore[call-arg]
+
+
+
+def _load_codex_accounts_file(path: Optional[Path]) -> list[dict[str, Any]]:
+    """Load admin-managed Codex account registry entries."""
+    registry = _codex_accounts_registry_path(path)
+    if not registry.exists():
+        return []
+    try:
+        data = json.loads(registry.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    accounts = data.get("accounts") if isinstance(data, dict) else None
+    return accounts if isinstance(accounts, list) else []
+
+
+def _codex_accounts_registry_path(path: Optional[Path]) -> Path:
+    if path is not None:
+        return _resolve_config_path(str(path))
+    default = Path("/secrets/codex-accounts.json")
+    if default.parent.exists():
+        return default
+    backend_dir = Path(__file__).resolve().parents[1]
+    return backend_dir.parent / "secrets" / "codex-accounts.json"

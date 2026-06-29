@@ -61,9 +61,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(summary.router)
     app.include_router(providers.router)
     app.include_router(admin.router)
+    app.include_router(admin.ui_router)
 
     return app
 
 
 # Module-level app for ``uvicorn app.main:app``.
 app = create_app()
+
+

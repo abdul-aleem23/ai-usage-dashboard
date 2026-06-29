@@ -1,0 +1,310 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI Usage CYD Style Variants</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px) 0 0 / 24px 24px,
+        linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px) 0 0 / 24px 24px,
+        radial-gradient(circle at 50% 0%, #3a2118 0, #111 48%, #050505 100%);
+      color: #f2e6c9;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      padding: 28px 18px;
+    }
+    main {
+      max-width: 1180px;
+      margin: 0 auto;
+      display: grid;
+      gap: 22px;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      gap: 16px;
+      border-bottom: 3px solid #5a5148;
+      padding-bottom: 12px;
+    }
+    h1, h2, p { margin: 0; }
+    h1 { font-size: 20px; text-transform: uppercase; color: #ffb000; }
+    p { color: #a69a83; line-height: 1.45; font-size: 13px; }
+    a { color: #00c8ff; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      gap: 22px;
+      align-items: start;
+    }
+    .variant {
+      display: grid;
+      gap: 10px;
+      padding: 14px;
+      background: #16120f;
+      border: 3px solid #4b4038;
+      box-shadow: 0 0 0 3px #070707, 0 18px 48px rgba(0,0,0,.45);
+    }
+    .variant h2 {
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0;
+      color: #f2e6c9;
+    }
+    canvas {
+      display: block;
+      width: 640px;
+      height: 480px;
+      max-width: 100%;
+      height: auto;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+      background: #090909;
+      border: 2px solid #0a0a0a;
+    }
+    .caption { min-height: 56px; }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>ESP32 HUD Style Variants</h1>
+        <p>Alternative 320x240 landscape designs. The original version remains in <a href="index.html">index.html</a>.</p>
+      </div>
+      <p>Target: CYD 320x240 / ILI9341</p>
+    </header>
+
+    <section class="grid">
+      <article class="variant">
+        <h2>01 UAC Status Panel</h2>
+        <canvas id="uac" width="320" height="240"></canvas>
+        <p class="caption">A harder industrial HUD: dense, metal-framed, high contrast, most similar to the first version but more ordered.</p>
+      </article>
+      <article class="variant">
+        <h2>02 Hellforge Warning Board</h2>
+        <canvas id="hell" width="320" height="240"></canvas>
+        <p class="caption">Warmer Doom-style palette with amber/red accents, heavy warning strips, and a chunkier arcade feel.</p>
+      </article>
+      <article class="variant">
+        <h2>03 Neon CRT Terminal</h2>
+        <canvas id="crt" width="320" height="240"></canvas>
+        <p class="caption">More retro-computer than Doom: cyan/green glow, black terminal layout, and tighter system-monitor rows.</p>
+      </article>
+
+      <article class="variant">
+        <h2>04 Cyberpunk NetRunner</h2>
+        <canvas id="netrunner" width="320" height="240"></canvas>
+        <p class="caption">Neon magenta/cyan tactical terminal: saturated, sharp, and more futuristic while keeping the segmented meter language.</p>
+      </article>
+      <article class="variant">
+        <h2>05 Orbital Command HUD</h2>
+        <canvas id="orbital" width="320" height="240"></canvas>
+        <p class="caption">Military sci-fi console: olive armor panels, amber/cyan telemetry, and a cleaner command-deck feel.</p>
+      </article>
+    </section>
+  </main>
+
+  <script>
+    const meters = [
+      { id: 'codex-main-5h', p: 'codex', label: 'CODEX 5H', pct: 79, status: 'ok', meta: 'RST 2H59' },
+      { id: 'codex-main-weekly', p: 'codex', label: 'CODEX WEEK', pct: 70, status: 'ok', meta: 'RST 19H' },
+      { id: 'copilot-personal-chat', p: 'copilot', label: 'GH CHAT', pct: 88, status: 'ok', meta: 'JUL 01' },
+      { id: 'copilot-personal-completions', p: 'copilot', label: 'GH CODE', pct: 96, status: 'ok', meta: 'JUL 01' },
+      { id: 'deepseek-default-USD', p: 'deepseek', label: 'DEEPSEEK', pct: 14, status: 'warning', meta: '$0.71/$5' },
+    ];
+
+    function setup(id) {
+      const canvas = document.getElementById(id);
+      const ctx = canvas.getContext('2d');
+      ctx.imageSmoothingEnabled = false;
+      return ctx;
+    }
+
+    function rect(ctx, x, y, w, h, color) {
+      ctx.fillStyle = color;
+      ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h));
+    }
+
+    function text(ctx, value, x, y, color, size = 10, align = 'left') {
+      ctx.fillStyle = color;
+      ctx.font = `${size}px monospace`;
+      ctx.textAlign = align;
+      ctx.textBaseline = 'top';
+      ctx.fillText(value, Math.round(x), Math.round(y));
+    }
+
+    function border(ctx, x, y, w, h, color, thick = 2) {
+      rect(ctx, x, y, w, thick, color);
+      rect(ctx, x, y + h - thick, w, thick, color);
+      rect(ctx, x, y, thick, h, color);
+      rect(ctx, x + w - thick, y, thick, h, color);
+    }
+
+    function colorFor(theme, meter) {
+      if (meter.status === 'warning') return theme.warning;
+      if (meter.status === 'critical') return theme.critical;
+      if (meter.p === 'codex') return theme.codex;
+      if (meter.p === 'copilot') return theme.copilot;
+      if (meter.p === 'deepseek') return theme.deepseek;
+      return theme.text;
+    }
+
+    function segmented(ctx, x, y, w, h, pct, fill, empty, segments = 18, edge = '#554') {
+      rect(ctx, x, y, w, h, '#050505');
+      border(ctx, x, y, w, h, edge, 1);
+      const gap = 2;
+      const inner = 3;
+      const segW = Math.floor((w - inner * 2 - gap * (segments - 1)) / segments);
+      const filled = Math.round((pct / 100) * segments);
+      for (let i = 0; i < segments; i++) {
+        const sx = x + inner + i * (segW + gap);
+        rect(ctx, sx, y + inner, segW, h - inner * 2, i < filled ? fill : empty);
+      }
+    }
+
+    function drawUac() {
+      const ctx = setup('uac');
+      const T = {
+        bg: '#090909', panel: '#171717', panel2: '#24201d', border: '#5a5148', text: '#f2e6c9', muted: '#a69a83',
+        codex: '#00c8ff', copilot: '#00d26a', deepseek: '#ffb000', warning: '#ffb000', critical: '#e02020', empty: '#3a302c'
+      };
+      rect(ctx, 0, 0, 320, 240, T.bg);
+      for (let y = 0; y < 240; y += 6) rect(ctx, 0, y, 320, 1, '#111');
+      rect(ctx, 4, 4, 312, 24, T.panel2); border(ctx, 4, 4, 312, 24, T.border, 2);
+      text(ctx, 'AI USAGE HUD', 12, 11, T.text, 11); text(ctx, 'NET:OK', 225, 11, '#39ff14', 10); text(ctx, '00:42', 304, 11, T.muted, 10, 'right');
+      meters.forEach((m, i) => {
+        const y = 34 + i * 38;
+        const c = colorFor(T, m);
+        rect(ctx, 6, y, 308, 35, T.panel); rect(ctx, 6, y, 4, 35, c); rect(ctx, 10, y, 304, 1, '#3b332d');
+        text(ctx, m.label, 16, y + 5, T.text, 10); text(ctx, m.status.toUpperCase(), 208, y + 5, c, 9); text(ctx, `${m.pct}%`, 304, y + 5, c, 11, 'right');
+        segmented(ctx, 16, y + 19, 186, 13, m.pct, c, T.empty, 18, T.border);
+        text(ctx, m.meta, 212, y + 21, T.muted, 8);
+      });
+      rect(ctx, 4, 226, 312, 10, T.panel2); text(ctx, 'API:OK', 12, 227, '#39ff14', 8); text(ctx, 'LAST UPDATE 00:42', 304, 227, T.muted, 8, 'right');
+    }
+
+    function drawHell() {
+      const ctx = setup('hell');
+      const T = {
+        bg: '#0b0705', panel: '#24120c', panel2: '#3a1d11', border: '#8a5a32', text: '#ffe0a3', muted: '#c08b61',
+        codex: '#30b7ff', copilot: '#75ff4a', deepseek: '#ff9f1c', warning: '#ffb000', critical: '#e02020', empty: '#4a2018'
+      };
+      rect(ctx, 0, 0, 320, 240, T.bg);
+      for (let x = 0; x < 320; x += 16) rect(ctx, x, 0, 2, 240, '#120a07');
+      rect(ctx, 0, 0, 320, 18, '#420f0b'); rect(ctx, 0, 18, 320, 4, '#ffb000');
+      text(ctx, 'AI USAGE // COMBAT HUD', 8, 5, T.text, 10); text(ctx, 'LINK OK', 267, 5, '#75ff4a', 9, 'right');
+      meters.forEach((m, i) => {
+        const y = 28 + i * 39;
+        const c = colorFor(T, m);
+        rect(ctx, 8, y, 304, 32, T.panel); border(ctx, 8, y, 304, 32, T.border, 2);
+        rect(ctx, 10, y + 2, 300, 4, m.status === 'warning' ? '#64140b' : '#1e130f');
+        text(ctx, `>${m.label}`, 16, y + 8, T.text, 10); text(ctx, `${m.pct}%`, 304, y + 8, c, 12, 'right');
+        segmented(ctx, 16, y + 21, 210, 8, m.pct, c, T.empty, 20, '#5c3325');
+        text(ctx, m.meta, 236, y + 21, m.status === 'warning' ? T.warning : T.muted, 8);
+      });
+      rect(ctx, 0, 224, 320, 16, '#160d09'); text(ctx, 'WARN: DEEPSEEK LOW BAL', 10, 228, '#ffb000', 9); text(ctx, '00:42', 308, 228, T.muted, 9, 'right');
+    }
+
+    function drawCrt() {
+      const ctx = setup('crt');
+      const T = {
+        bg: '#02090a', panel: '#061113', panel2: '#0a1a1d', border: '#1e5b62', text: '#b8fff4', muted: '#5ca6a8',
+        codex: '#00e5ff', copilot: '#39ff14', deepseek: '#ffcc33', warning: '#ffcc33', critical: '#ff4050', empty: '#0d2a2d'
+      };
+      rect(ctx, 0, 0, 320, 240, T.bg);
+      for (let y = 0; y < 240; y += 3) rect(ctx, 0, y, 320, 1, '#031416');
+      border(ctx, 4, 4, 312, 232, T.border, 1);
+      text(ctx, 'AI_USAGE_MONITOR', 10, 10, T.codex, 10); text(ctx, 'SYNCED', 238, 10, T.copilot, 9); text(ctx, '00:42', 306, 10, T.muted, 9, 'right');
+      rect(ctx, 8, 25, 304, 1, T.border);
+      meters.forEach((m, i) => {
+        const y = 34 + i * 37;
+        const c = colorFor(T, m);
+        text(ctx, `${i + 1}. ${m.label}`, 14, y, T.text, 10); text(ctx, m.meta, 154, y, T.muted, 8); text(ctx, `${m.pct}%`, 302, y, c, 10, 'right');
+        segmented(ctx, 14, y + 15, 288, 13, m.pct, c, T.empty, 24, T.border);
+      });
+      text(ctx, 'ENDPOINT /SUMMARY.COMPACT', 10, 224, T.muted, 8); text(ctx, 'API OK', 306, 224, T.copilot, 8, 'right');
+    }
+
+
+
+    function drawNetRunner() {
+      const ctx = setup('netrunner');
+      const T = {
+        bg: '#05020a', panel: '#10081d', panel2: '#1d0b31', border: '#7a2cff', text: '#f8eaff', muted: '#a989c7',
+        codex: '#00e5ff', copilot: '#36ff7d', deepseek: '#ffcc00', warning: '#ffcc00', critical: '#ff2a6d', empty: '#24142f'
+      };
+      rect(ctx, 0, 0, 320, 240, T.bg);
+      for (let x = -80; x < 340; x += 18) rect(ctx, x, 0, 1, 240, '#130a1f');
+      for (let y = 0; y < 240; y += 10) rect(ctx, 0, y, 320, 1, '#0c1824');
+      rect(ctx, 0, 0, 320, 25, '#14091f');
+      rect(ctx, 0, 23, 320, 2, '#ff2a6d');
+      rect(ctx, 0, 25, 320, 1, '#00e5ff');
+      text(ctx, 'NETRUNNER USAGE GRID', 8, 7, T.text, 10);
+      text(ctx, 'UPLINK', 232, 7, '#36ff7d', 9);
+      text(ctx, '00:42', 308, 7, '#00e5ff', 9, 'right');
+
+      meters.forEach((m, i) => {
+        const y = 34 + i * 38;
+        const c = colorFor(T, m);
+        rect(ctx, 7, y, 306, 32, T.panel);
+        border(ctx, 7, y, 306, 32, i % 2 === 0 ? '#4b1a74' : '#123c4a', 1);
+        rect(ctx, 10, y + 3, 28, 4, c);
+        text(ctx, m.label, 15, y + 9, T.text, 10);
+        text(ctx, `${m.pct}%`, 303, y + 8, c, 12, 'right');
+        segmented(ctx, 88, y + 20, 155, 9, m.pct, c, T.empty, 16, '#3e2858');
+        text(ctx, m.meta, 252, y + 21, m.status === 'warning' ? T.warning : T.muted, 8);
+      });
+      rect(ctx, 6, 224, 308, 12, '#10081d');
+      border(ctx, 6, 224, 308, 12, '#4b1a74', 1);
+      text(ctx, 'SECURE CHANNEL', 12, 226, '#36ff7d', 8);
+      text(ctx, 'HTTPS OK', 304, 226, '#00e5ff', 8, 'right');
+    }
+
+    function drawOrbital() {
+      const ctx = setup('orbital');
+      const T = {
+        bg: '#070908', panel: '#111914', panel2: '#1d2a21', border: '#62705d', text: '#dfe8d2', muted: '#8e9b87',
+        codex: '#5bd8ff', copilot: '#73ff6b', deepseek: '#ffb347', warning: '#ffb347', critical: '#ff4e42', empty: '#263027'
+      };
+      rect(ctx, 0, 0, 320, 240, T.bg);
+      rect(ctx, 0, 0, 320, 240, '#050706');
+      for (let y = 0; y < 240; y += 16) rect(ctx, 0, y, 320, 1, '#101610');
+      for (let x = 0; x < 320; x += 32) rect(ctx, x, 0, 1, 240, '#0e150f');
+      rect(ctx, 4, 4, 312, 26, T.panel2);
+      border(ctx, 4, 4, 312, 26, T.border, 2);
+      rect(ctx, 8, 8, 46, 18, '#233427');
+      text(ctx, 'UNSC', 18, 12, '#73ff6b', 9);
+      text(ctx, 'ORBITAL RESOURCE COMMAND', 62, 10, T.text, 9);
+      text(ctx, 'LINK 00:42', 306, 10, T.muted, 8, 'right');
+
+      meters.forEach((m, i) => {
+        const y = 38 + i * 36;
+        const c = colorFor(T, m);
+        rect(ctx, 8, y, 304, 30, T.panel);
+        rect(ctx, 8, y, 304, 1, '#2d3b30');
+        rect(ctx, 8, y + 29, 304, 1, '#040504');
+        rect(ctx, 10, y + 4, 7, 22, c);
+        text(ctx, m.label, 24, y + 5, T.text, 10);
+        text(ctx, m.status === 'warning' ? 'LOW' : 'NOM', 136, y + 5, c, 8);
+        text(ctx, `${m.pct}%`, 304, y + 5, c, 11, 'right');
+        segmented(ctx, 24, y + 19, 196, 8, m.pct, c, T.empty, 20, '#485447');
+        text(ctx, m.meta, 230, y + 19, T.muted, 8);
+      });
+      rect(ctx, 4, 224, 312, 12, '#101610');
+      text(ctx, 'STATUS: GREEN', 12, 226, '#73ff6b', 8);
+      text(ctx, 'CLOUD ROUTE OK', 304, 226, '#5bd8ff', 8, 'right');
+    }
+
+    drawUac();
+    drawHell();
+    drawCrt();
+    drawNetRunner();
+    drawOrbital();
+  </script>
+</body>
+</html>
